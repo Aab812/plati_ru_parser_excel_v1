@@ -40,6 +40,3 @@
 
 ```bash
 pip install tkinter openpyxl requests
-
-
-
