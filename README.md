@@ -38,3 +38,6 @@
 
 ```bash
 pip install tkinter openpyxl requests
+
+
+##**Примечание**: код создан совместно с chatGPT 
