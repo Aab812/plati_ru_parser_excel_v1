@@ -3,7 +3,7 @@
 block_cipher = None
 
 a = Analysis(['api_plati_ru.py'],
-             pathex=['/Users/aab812/PycharmProjects/lessonmac/actual_001/'],
+             pathex=['Your_path'],
              binaries=[],
              datas=[],
              hiddenimports=[],
