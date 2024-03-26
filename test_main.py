@@ -1,54 +1,73 @@
 import os
-import logging
-import unittest
+import datetime
 import requests
-from datetime import datetime
 
-# Создание директории logs, если она не существует
-os.makedirs("logs", exist_ok=True)
+def create_logs_folder():
+    logs_folder = "logs"
+    if not os.path.exists(logs_folder):
+        os.makedirs(logs_folder)
 
-# Получение текущего времени
-current_time = datetime.now()
+def create_monthly_logs_folder():
+    current_month = datetime.datetime.now().strftime("%B").lower()
+    logs_month_folder = os.path.join("logs", f"logs_{current_month}")
+    if not os.path.exists(logs_month_folder):
+        os.makedirs(logs_month_folder)
+    return logs_month_folder
 
-# Параметры логирования
-log_file = f"logs/logs_{current_time.strftime('%d_%m_%Y_%H_%M')}.log"
-log_format = "%(asctime)s - %(levelname)s - %(message)s"
+def get_timestamp():
+    return datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
 
-# Настройка логирования
-logging.basicConfig(filename=log_file, level=logging.INFO, format=log_format)
+def log_request(url, headers):
+    logs_folder = create_monthly_logs_folder()
+    with open(os.path.join(logs_folder, f"logs_{get_timestamp()}.txt"), "a") as file:
+        file.write("Request:\n")
+        file.write(f"URL: {url}\n")
+        file.write(f"Headers: {headers}\n\n")
 
-class TestPlatiAPI(unittest.TestCase):
-    def test_search_spiderman2(self):
-        url = "https://plati.io/api/search.ashx?query=spider-man-2&visibleOnly=true&response=json"
+def log_response(response):
+    logs_folder = create_monthly_logs_folder()
+    with open(os.path.join(logs_folder, f"logs_{get_timestamp()}.txt"), "a") as file:
+        file.write("Response:\n")
+        file.write(f"URL: {response.url}\n")
+        file.write(f"Status Code: {response.status_code}\n")
+        file.write(f"Body: {response.text}\n\n")
 
-        # Отправляем GET-запрос к API
-        response = requests.get(url)
+def test_search_spiderman2():
+    url = "https://plati.io/api/search.ashx?query=spider-man-2&visibleOnly=true&response=json"
+    headers = {"User-Agent": "Mozilla/5.0"}
 
-        # Проверяем успешность ответа (статус код 200)
-        self.assertEqual(response.status_code, 200)
+    create_logs_folder()
 
-        # Проверяем, что ответ в формате JSON
-        content_type = response.headers['Content-Type']
-        self.assertTrue('application/json' in content_type or 'text/json' in content_type)
+    log_request(url, headers)
 
-        # Выводим только уникальные ключи из ответа метода в заданном порядке
-        response_data = response.json()
-        keys = set()
-        for item in response_data['items']:
-            keys.update(item.keys())
-        used_keys_order = ["id", "name", "price_rur", "url", "description", "seller_id", "seller_name",
-                     "seller_rating", "count_positiveresponses", "count_negativeresponses", "count_returns"]
-        logging.info(" ")
-        logging.info("Используемые ключи:")
-        for key in used_keys_order:
-            if key in keys:
-                logging.info(key)
+    # Отправляем GET-запрос к API
+    response = requests.get(url, headers=headers)
 
-        # Выводим статус код в лог
-        logging.info("Статус код: %d", response.status_code)
+    log_response(response)
 
-        # Выводим URL в лог
-        logging.info("URL: %s", url)
+    # Проверяем успешность ответа (статус код 200)
+    assert response.status_code == 200
+
+    # Проверяем, что ответ в формате JSON
+    assert "application/json" in response.headers['Content-Type'] or 'text/json' in response.headers['Content-Type']
+
+    # Выводим только уникальные ключи из ответа метода в заданном порядке
+    response_data = response.json()
+    keys = set()
+    for item in response_data['items']:
+        keys.update(item.keys())
+    used_keys_order = ["id", "name", "price_rur", "url", "description", "seller_id", "seller_name",
+                 "seller_rating", "count_positiveresponses", "count_negativeresponses", "count_returns"]
+    print("\nИспользуемые ключи:")
+    for key in used_keys_order:
+        if key in keys:
+            print(key)
+
+    # Выводим статус код в терминал
+    print("Статус код:", response.status_code)
+
+    # Выводим URL в терминал
+    print("URL:", url)
 
 if __name__ == '__main__':
-    unittest.main()
+    test_search_spiderman2()
