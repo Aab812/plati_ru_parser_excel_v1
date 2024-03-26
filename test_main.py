@@ -1,5 +1,6 @@
 import os
 import datetime
+import json
 import requests
 
 def create_logs_folder():
@@ -20,17 +21,20 @@ def get_timestamp():
 def log_request(url, headers):
     logs_folder = create_monthly_logs_folder()
     with open(os.path.join(logs_folder, f"logs_{get_timestamp()}.txt"), "a") as file:
-        file.write("Request:\n")
+        file.write("== Request ==\n")
         file.write(f"URL: {url}\n")
         file.write(f"Headers: {headers}\n\n")
 
 def log_response(response):
     logs_folder = create_monthly_logs_folder()
     with open(os.path.join(logs_folder, f"logs_{get_timestamp()}.txt"), "a") as file:
-        file.write("Response:\n")
+        file.write("== Response ==\n")
         file.write(f"URL: {response.url}\n")
         file.write(f"Status Code: {response.status_code}\n")
-        file.write(f"Body: {response.text}\n\n")
+        file.write("--- Body ---\n")
+        response_data = response.json()
+        json.dump(response_data, file, indent=4)
+        file.write("\n\n")
 
 def test_search_spiderman2():
     url = "https://plati.io/api/search.ashx?query=spider-man-2&visibleOnly=true&response=json"
