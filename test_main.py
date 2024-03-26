@@ -1,11 +1,20 @@
+import os
+import logging
 import unittest
 import requests
-import logging
 from datetime import datetime
 
-# Настройка логирования
+# Создание директории logs, если она не существует
+os.makedirs("logs", exist_ok=True)
+
+# Получение текущего времени
+current_time = datetime.now()
+
+# Параметры логирования
+log_file = f"logs/logs_{current_time.strftime('%d_%m_%Y_%H_%M')}.log"
 log_format = "%(asctime)s - %(levelname)s - %(message)s"
-log_file = f"logs/logs_{datetime.now().strftime('%d_%m_%Y_%H_%M')}.log"
+
+# Настройка логирования
 logging.basicConfig(filename=log_file, level=logging.INFO, format=log_format)
 
 class TestPlatiAPI(unittest.TestCase):
