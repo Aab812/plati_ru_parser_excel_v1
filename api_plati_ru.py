@@ -7,8 +7,6 @@ import openpyxl
 import requests
 from openpyxl.styles import PatternFill
 from concurrent.futures import ThreadPoolExecutor
-from tqdm import tqdm  # Импортируем tqdm для отображения прогресса
-
 
 def fetch_data(query, page_size, page_end):
     url = f"https://plati.io/api/search.ashx?query={query}&pagesize={page_size}&pagenum={page_end}&visibleOnly=true&response=json"
@@ -16,14 +14,10 @@ def fetch_data(query, page_size, page_end):
     data = response.json()
     return data.get('items', [])
 
-
 def extract_account_info(description, title):
-    keywords = ["предоставляется аккаунт", "аккаунт предоставляется", "доступ к аккаунту",
-                "доступ предоставляется", "остаются на вашем аккаунте", "будет выдан логин и пароль", "Аренда"]
-    account_info = "Предоставляется аккаунт" if any(keyword in description.lower() for keyword in keywords) \
-                                                or any(keyword in title.lower() for keyword in keywords) else ""
-    return account_info + ("Упоминание аккаунта" if "аккаунт" in title.lower() else "")
-
+    keywords = ["аккаунт", "account", "аренда", "offline", "Оффлайн", "Онлайн", "п2", "п3", " п2 ", "п2-п3"]
+    account_info = "Упоминание аккаунта" if any(keyword in title.lower() for keyword in keywords) else ""
+    return account_info
 
 def add_data_to_excel(query, page_size=500, page_end=10, min_price=None, max_price=None):
     current_time = datetime.now()
@@ -36,27 +30,16 @@ def add_data_to_excel(query, page_size=500, page_end=10, min_price=None, max_pri
     ws.append(["id", "Название", "Цена", "Ссылка", "Платформа", "Продавец", "Рейтинг продавца", "Положительные отзывы",
                "Отрицательные отзывы", "Возвраты", "Упоминание аккаунта"])
 
-    all_items = []
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(fetch_data, query, page_size, page_num) for page_num in range(1, page_end + 1)]
-        # Используем tqdm для отображения прогресса выполнения запросов
-        for future in tqdm(futures, total=page_end, desc="Fetching data"):
-            all_items.extend(future.result())
-
-    if min_price is not None:
-        all_items = (item for item in all_items if item.get("price_rur", 0) >= min_price)
-
-    if max_price is not None:
-        all_items = (item for item in all_items if item.get("price_rur", 0) <= max_price)
-
-    sorted_items = sorted(all_items, key=lambda x: x.get("price_rur", 0), reverse=True)
+    all_items = fetch_all_items(query, page_size, page_end)
+    filtered_items = filter_items(all_items, min_price, max_price)
+    sorted_items = sort_items(filtered_items)
 
     for idx, item in enumerate(sorted_items, start=1):
         name = item.get("name", "")
         price = item.get("price_rur", "")
         url = item.get("url", "")
         title = name.lower()
-        platform = next((platform for platform in ["Xbox", "PC", "PS", "Steam"] if platform.lower() in title), "")
+        platform = extract_platform(title)
         account_info = extract_account_info(item.get("description", ""), title)
         ws.append(
             [item.get("seller_id", ""), name, price, url, platform, item.get("seller_name", ""),
@@ -81,9 +64,28 @@ def add_data_to_excel(query, page_size=500, page_end=10, min_price=None, max_pri
 
     ws.auto_filter.ref = ws.dimensions
     wb.save(file_name)
-    update_info(f"Данные сохранены в файле: {file_name}")
     return folder_path
 
+def fetch_all_items(query, page_size, page_end):
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(fetch_data, query, page_size, page_num) for page_num in range(1, page_end + 1)]
+        return [item for future in futures for item in future.result()]
+
+def filter_items(items, min_price, max_price):
+    if min_price is not None:
+        items = [item for item in items if item.get("price_rur", 0) >= min_price]
+
+    if max_price is not None:
+        items = [item for item in items if item.get("price_rur", 0) <= max_price]
+
+    return items
+
+def sort_items(items):
+    return sorted(items, key=lambda x: x.get("price_rur", 0), reverse=True)
+
+def extract_platform(title):
+    platforms = ["Xbox", "PC", "PS", "Steam"]
+    return next((platform for platform in platforms if platform.lower() in title), "")
 
 def open_excel_folder():
     query = query_combobox.get()
@@ -95,90 +97,74 @@ def open_excel_folder():
         subprocess.Popen(f'explorer "{folder_path}"')
     elif os.name == 'posix':
         subprocess.Popen(['open', folder_path])
-
+    update_info(f"Данные сохранены в файле: {month_folder}")
 
 def run_query():
     query = query_combobox.get()
     min_price = min_price_entry.get()
     max_price = max_price_entry.get()
 
-    # Проверяем, введены ли значения в поля "От" и "До" цены
     if min_price and max_price:
         min_price = int(min_price)
         max_price = int(max_price)
     else:
-        # Используем значение по умолчанию, если не введены
         min_price = None
         max_price = None
 
     if query:
         info_text.delete(1.0, tk.END)
-        add_data_to_excel(query, min_price=min_price, max_price=max_price)
+        folder_path = add_data_to_excel(query, min_price=min_price, max_price=max_price)
+        update_info(f"Данные сохранены в файле: {folder_path}")
     else:
         update_info("Введите запрос!")
-
 
 def clear_fields():
     query_combobox.set('')
     min_price_entry.delete(0, tk.END)
     max_price_entry.delete(0, tk.END)
 
-
 def update_info(message):
     info_text.configure(state=tk.NORMAL)
     info_text.insert(tk.END, message + "\n")
     info_text.configure(state=tk.DISABLED)
 
-
 root = tk.Tk()
 root.title("Добавление данных в Excel")
+root.geometry("575x400")
+root.resizable(False, False)
 
-# Определяем ширину и высоту окна и размещаем его по середине экрана
-window_width = 600
-window_height = 400
-screen_width = root.winfo_screenwidth()
-screen_height = root.winfo_screenheight()
-x_position = (screen_width - window_width) // 2
-y_position = (screen_height - window_height) // 2
-root.geometry(f"{window_width}x{window_height}+{x_position}+{y_position}")
-
-# Создаем метку и выпадающее меню для запроса
 query_label = ttk.Label(root, text="Введите запрос:")
-query_label.grid(row=0, column=0, padx=5, pady=5)
-query_combobox = ttk.Combobox(root, width=50, style='TCombobox')
-query_combobox.grid(row=0, column=1, padx=5, pady=5)
+query_label.grid(row=0, column=0, padx=(10, 5), pady=5, sticky="w")
 
-# Создаем рамку для цен
+query_combobox = ttk.Combobox(root, width=72, style='TCombobox')
+query_combobox.grid(row=0, column=1, padx=(10, 5), pady=5, sticky="ew")
+
 price_frame = ttk.Frame(root)
-price_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5)
+price_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="w")
 
-# Метка и поле ввода для минимальной цены
-min_price_label = ttk.Label(price_frame, text="Цена от")
-min_price_label.grid(row=0, column=0, padx=5, pady=5)
+min_price_label = ttk.Label(price_frame, text="Цена от:")
+min_price_label.grid(row=0, column=0, padx=7, pady=7, sticky="w")
+
 min_price_entry = ttk.Entry(price_frame)
-min_price_entry.grid(row=0, column=1, padx=5, pady=5)
+min_price_entry.grid(row=0, column=1, padx=2, pady=2, sticky="w")
 
-# Метка и поле ввода для максимальной цены
-max_price_label = ttk.Label(price_frame, text="Цена до")
-max_price_label.grid(row=0, column=2, padx=5, pady=5)
+max_price_label = ttk.Label(price_frame, text="Цена до:")
+max_price_label.grid(row=1, column=0, padx=7, pady=7, sticky="w")
+
 max_price_entry = ttk.Entry(price_frame)
-max_price_entry.grid(row=0, column=3, padx=5, pady=5)
+max_price_entry.grid(row=1, column=1, padx=2, pady=10, sticky="nsew")
 
-# Кнопка для запуска запроса
 run_button = ttk.Button(root, text="Запустить", command=run_query)
-run_button.grid(row=2, column=0, columnspan=2, padx=5, pady=5)
+run_button.grid(row=3, column=0, columnspan=2, padx=7, pady=5, sticky="ew")
 
-# Кнопка для очистки полей
 clear_button = ttk.Button(root, text="Очистить", command=clear_fields)
-clear_button.grid(row=3, column=0, columnspan=2, padx=5, pady=5)
+clear_button.grid(row=7, column=0, columnspan=2, padx=7, pady=5, sticky="ew")
 
-# Кнопка для открытия папки с эксель-файлами
 open_folder_button = ttk.Button(root, text="Открыть папку с эксель-файлами", command=open_excel_folder)
-open_folder_button.grid(row=4, column=0, columnspan=2, padx=5, pady=5)
+open_folder_button.grid(row=8, column=0, columnspan=2, padx=7, pady=5, sticky="ew")
 
-# Создаем текстовое поле для вывода информации
-info_text = tk.Text(root, wrap="word", height=15, width=70)
-info_text.grid(row=5, column=0, columnspan=2, padx=5, pady=5)
+info_text = tk.Text(root, wrap="word", height=10, width=70)
+info_text.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
 info_text.configure(state=tk.DISABLED)
 
 root.mainloop()
