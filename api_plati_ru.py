@@ -7,15 +7,15 @@ import openpyxl
 import aiohttp
 import asyncio
 from openpyxl.styles import PatternFill
-import json  # Добавляем импорт модуля json
+import json
 
 async def fetch_data(session, query, page_size, page_end):
     url = f"https://plati.io/api/search.ashx?query={query}&pagesize={page_size}&pagenum={page_end}&visibleOnly=true&response=json"
-    headers = {'Content-Type': 'application/json'}  # Указываем тип контента
+    headers = {'Content-Type': 'application/json'}
     async with session.get(url, headers=headers) as response:
-        data_text = await response.text()  # Читаем данные как текст
+        data_text = await response.text()
         try:
-            data = json.loads(data_text)  # Преобразуем текст в JSON
+            data = json.loads(data_text)
         except json.JSONDecodeError:
             print("Ошибка при декодировании JSON")
             data = {}
@@ -39,7 +39,7 @@ async def add_data_to_excel(session, params):
     folder_path = os.path.abspath(month_folder)
     file_name = current_time.strftime(f"{month_folder}/%d_%m_%Y_%H_%M_{query}.xlsx")
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
         all_items = await fetch_all_items(session, query, page_size, page_end)
         filtered_items = filter_items(all_items, min_price, max_price)
         sorted_items = sorted(filtered_items, key=lambda x: x.get("price_rur", 0), reverse=True)
@@ -104,7 +104,7 @@ def open_excel_folder():
     min_price = int(min_price_entry.get() or 0)
     max_price = int(max_price_entry.get() or 0)
     params = {'query': query, 'page_size': 10, 'page_end': 10, 'min_price': min_price, 'max_price': max_price}
-    asyncio.run(add_data_to_excel(None, params))  # Здесь изменение
+    asyncio.run(add_data_to_excel(None, params))
 
 def run_query():
     query = query_combobox.get()
@@ -120,8 +120,8 @@ def run_query():
 
     if query:
         info_text.delete(1.0, tk.END)
-        params = {'query': query, 'page_size': 10, 'page_end': 10, 'min_price': min_price, 'max_price': max_price}
-        folder_path = asyncio.run(add_data_to_excel(None, params))  # Здесь изменение
+        params = {'query': query, 'page_size': 5000, 'page_end': 10, 'min_price': min_price, 'max_price': max_price}
+        folder_path = asyncio.run(add_data_to_excel(None, params))
         update_info(f"Данные сохранены в файле: {folder_path}")
     else:
         update_info("Введите запрос!")
@@ -138,7 +138,7 @@ def update_info(message):
 
 root = tk.Tk()
 root.title("Добавление данных в Excel")
-root.geometry("575x400")
+root.geometry("900x400")
 root.resizable(False, False)
 
 query_label = ttk.Label(root, text="Введите запрос:")
