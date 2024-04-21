@@ -7,15 +7,15 @@ import openpyxl
 import aiohttp
 import asyncio
 from openpyxl.styles import PatternFill
-import json  # Добавляем импорт модуля json
+import json
 
 async def fetch_data(session, query, page_size, page_end):
     url = f"https://plati.io/api/search.ashx?query={query}&pagesize={page_size}&pagenum={page_end}&visibleOnly=true&response=json"
-    headers = {'Content-Type': 'application/json'}  # Указываем тип контента
+    headers = {'Content-Type': 'application/json'}
     async with session.get(url, headers=headers) as response:
-        data_text = await response.text()  # Читаем данные как текст
+        data_text = await response.text()
         try:
-            data = json.loads(data_text)  # Преобразуем текст в JSON
+            data = json.loads(data_text)
         except json.JSONDecodeError:
             print("Ошибка при декодировании JSON")
             data = {}
@@ -39,7 +39,7 @@ async def add_data_to_excel(session, params):
     folder_path = os.path.abspath(month_folder)
     file_name = current_time.strftime(f"{month_folder}/%d_%m_%Y_%H_%M_{query}.xlsx")
 
-    async with aiohttp.ClientSession() as session:
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
         all_items = await fetch_all_items(session, query, page_size, page_end)
         filtered_items = filter_items(all_items, min_price, max_price)
         sorted_items = sorted(filtered_items, key=lambda x: x.get("price_rur", 0), reverse=True)
@@ -104,7 +104,7 @@ def open_excel_folder():
     min_price = int(min_price_entry.get() or 0)
     max_price = int(max_price_entry.get() or 0)
     params = {'query': query, 'page_size': 10, 'page_end': 10, 'min_price': min_price, 'max_price': max_price}
-    asyncio.run(add_data_to_excel(None, params))  # Здесь изменение
+    asyncio.run(add_data_to_excel(None, params))
 
 def run_query():
     query = query_combobox.get()
@@ -120,8 +120,8 @@ def run_query():
 
     if query:
         info_text.delete(1.0, tk.END)
-        params = {'query': query, 'page_size': 10, 'page_end': 10, 'min_price': min_price, 'max_price': max_price}
-        folder_path = asyncio.run(add_data_to_excel(None, params))  # Здесь изменение
+        params = {'query': query, 'page_size': 5000, 'page_end': 10, 'min_price': min_price, 'max_price': max_price}
+        folder_path = asyncio.run(add_data_to_excel(None, params))
         update_info(f"Данные сохранены в файле: {folder_path}")
     else:
         update_info("Введите запрос!")
@@ -132,47 +132,64 @@ def clear_fields():
     max_price_entry.delete(0, tk.END)
 
 def update_info(message):
-    info_text.configure(state=tk.NORMAL)
+    info_text.configure(state='normal')
     info_text.insert(tk.END, message + "\n")
-    info_text.configure(state=tk.DISABLED)
+    info_text.configure(state='disabled')
 
+def open_folder():
+    query = query_combobox.get()
+    min_price = int(min_price_entry.get() or 0)
+    max_price = int(max_price_entry.get() or 0)
+    params = {'query': query, 'page_size': 10, 'page_end': 10, 'min_price': min_price, 'max_price': max_price}
+    asyncio.run(add_data_to_excel(None, params))
+    folder_path = asyncio.run(add_data_to_excel(None, params))
+    subprocess.Popen(f'explorer.exe "{folder_path}"')
+
+# Создание главного окна
 root = tk.Tk()
-root.title("Добавление данных в Excel")
-root.geometry("575x400")
+root.title("Экспорт данных с Plati.io")
+root.geometry("800x600")
 root.resizable(False, False)
 
+# Создание стилей для элементов
+style = ttk.Style()
+style.configure('TCombobox', fieldbackground='white', font=('Helvetica', 12), foreground='black')
+style.configure('TEntry', fieldbackground='white', font=('Helvetica', 12), foreground='black')
+style.configure('TLabel', font=('Helvetica', 12))
+
+# Создание элементов интерфейса
 query_label = ttk.Label(root, text="Введите запрос:")
-query_label.grid(row=0, column=0, padx=(10, 5), pady=5, sticky="w")
+query_label.grid(row=0, column=0, padx=10, pady=(10, 5), sticky="w")
 
 query_combobox = ttk.Combobox(root, width=72, style='TCombobox')
-query_combobox.grid(row=0, column=1, padx=(10, 5), pady=5, sticky="ew")
+query_combobox.grid(row=0, column=1, padx=10, pady=(10, 5), sticky="ew")
 
-price_frame = ttk.Frame(root)
-price_frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="w")
+price_frame = ttk.LabelFrame(root, text="Цена")
+price_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=(5, 10), sticky="w")
 
-min_price_label = ttk.Label(price_frame, text="Цена от:")
-min_price_label.grid(row=0, column=0, padx=7, pady=7, sticky="w")
+min_price_label = ttk.Label(price_frame, text="Минимальная цена:")
+min_price_label.grid(row=0, column=0, padx=5, pady=5, sticky="w")
 
-min_price_entry = ttk.Entry(price_frame)
-min_price_entry.grid(row=0, column=1, padx=2, pady=2, sticky="w")
+min_price_entry = ttk.Entry(price_frame, width=15, style='TEntry')
+min_price_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
-max_price_label = ttk.Label(price_frame, text="Цена до:")
-max_price_label.grid(row=1, column=0, padx=7, pady=7, sticky="w")
+max_price_label = ttk.Label(price_frame, text="Максимальная цена:")
+max_price_label.grid(row=1, column=0, padx=5, pady=5, sticky="w")
 
-max_price_entry = ttk.Entry(price_frame)
-max_price_entry.grid(row=1, column=1, padx=2, pady=10, sticky="nsew")
+max_price_entry = ttk.Entry(price_frame, width=15, style='TEntry')
+max_price_entry.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
 run_button = ttk.Button(root, text="Запустить", command=run_query)
-run_button.grid(row=3, column=0, columnspan=2, padx=7, pady=5, sticky="ew")
+run_button.grid(row=2, column=0, columnspan=2, padx=10, pady=(10, 5), sticky="ew")
 
 clear_button = ttk.Button(root, text="Очистить", command=clear_fields)
-clear_button.grid(row=7, column=0, columnspan=2, padx=7, pady=5, sticky="ew")
+clear_button.grid(row=3, column=0, columnspan=2, padx=10, pady=(5, 10), sticky="ew")
 
-open_folder_button = ttk.Button(root, text="Открыть папку с эксель-файлами", command=open_excel_folder)
-open_folder_button.grid(row=8, column=0, columnspan=2, padx=7, pady=5, sticky="ew")
+open_folder_button = ttk.Button(root, text="Открыть папку с файлами Excel", command=open_folder)
+open_folder_button.grid(row=4, column=0, columnspan=2, padx=10, pady=(5, 10), sticky="ew")
 
-info_text = tk.Text(root, wrap="word", height=10, width=70)
-info_text.grid(row=5, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
-info_text.configure(state=tk.DISABLED)
+info_text = tk.Text(root, wrap="word", height=10, width=72, state='disabled')
+info_text.grid(row=5, column=0, columnspan=2, padx=10, pady=(5, 10), sticky="nsew")
 
+# Запуск главного цикла
 root.mainloop()
