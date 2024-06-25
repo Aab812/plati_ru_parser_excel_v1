@@ -1,6 +1,6 @@
 import os
 import subprocess
-import tkinter as tk
+import tkingister as tk
 from tkinter import ttk
 from datetime import datetime
 import openpyxl
